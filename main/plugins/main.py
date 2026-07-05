@@ -196,8 +196,41 @@ def parse_range(link):
         return None
     return [f"{base}{i}" for i in range(start, end + 1)]
 
-@Bot.on_message(filters.private & filters.incoming & ~filters.command("start"))
-async def clone(bot, event):
+@Bot.on_message(filters.private & filters.command("thumb") & filters.reply)
+async def extract_thumb(bot, message):
+    reply = message.reply_to_message
+    if not reply or not reply.video:
+        await message.reply("Reply to a video with /thumb.")
+        return
+    status = await message.reply("Extracting 1080p thumbnail...")
+    video_path = None
+    thumb_path = None
+    try:
+        video_path = await bot.download_media(reply)
+        duration = reply.video.duration or 1
+        thumb_path = f"thumb_{message.chat.id}_{int(time.time())}.jpg"
+        cmd = [
+            "ffmpeg", "-y", "-ss", str(duration / 2), "-i", video_path,
+            "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
+            "-vframes", "1", thumb_path
+        ]
+        process = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        _, stderr = await process.communicate()
+        if not os.path.isfile(thumb_path):
+            await status.edit(f"ERROR: {stderr.decode().strip()[-300:]}")
+            return
+        await bot.send_photo(message.chat.id, thumb_path, caption="1080p Thumbnail")
+        await status.delete()
+    except Exception as e:
+        await status.edit(f"ERROR: {str(e)}")
+    finally:
+        if video_path and os.path.isfile(video_path):
+            os.remove(video_path)
+        if thumb_path and os.path.isfile(thumb_path):
+            os.remove(thumb_path)
+
+
     if not event.text:
         return
 
