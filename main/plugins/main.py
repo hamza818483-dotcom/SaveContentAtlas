@@ -99,6 +99,26 @@ async def get_msg(userbot, client, sender, msg_link, edit):
             if msg is None or msg.empty:
                 await edit.edit('ERROR: Message not found or was deleted.')
                 return
+
+            if msg.media_group_id:
+                await edit.edit('Downloading album...')
+                group_msgs = await userbot.get_media_group(chat, msg_id)
+                for i, gmsg in enumerate(group_msgs):
+                    gfile = await userbot.download_media(gmsg)
+                    if not gfile:
+                        continue
+                    gcap = gmsg.caption or ""
+                    ext = str(gfile).split(".")[-1].lower()
+                    if ext in ("mp4", "mkv", "mov", "webm"):
+                        await client.send_video(sender, gfile, caption=gcap, supports_streaming=True)
+                    elif ext in ("jpg", "jpeg", "png", "webp"):
+                        await client.send_photo(sender, gfile, caption=gcap)
+                    else:
+                        await client.send_document(sender, gfile, caption=gcap)
+                    os.remove(gfile)
+                await edit.delete()
+                return
+
             await edit.edit('Downloading...')
             file = None
             if msg.media:
@@ -162,25 +182,56 @@ async def get_msg(userbot, client, sender, msg_link, edit):
                 await asyncio.sleep(e.value + 2)
         await edit.delete()
         
+def get_all_links(text):
+    regex = r"(?i)\bhttps?://t\.me/\S+"
+    return re.findall(regex, text)
+
+def parse_range(link):
+    """Support t.me/c/CHANNEL/START-END for batch fetch."""
+    m = re.match(r"(https?://t\.me/c/\d+/)(\d+)-(\d+)/?$", link.strip())
+    if not m:
+        return None
+    base, start, end = m.group(1), int(m.group(2)), int(m.group(3))
+    if end < start or end - start > 200:
+        return None
+    return [f"{base}{i}" for i in range(start, end + 1)]
+
 @Bot.on_message(filters.private & filters.incoming & ~filters.command("start"))
 async def clone(bot, event):
     if not event.text:
         return
-    link = get_link(event.text)
-    if not link:
+    links = get_all_links(event.text)
+    if not links:
         return
-    edit = await bot.send_message(event.chat.id, 'Trying to process.')
-    if 't.me/+' in link:
-        xy = await join(userbot, link)
-        await edit.edit(xy)
-        return 
-    if 't.me' in link:
-        try:
-            await get_msg(userbot, bot, event.chat.id, link, edit) 
-        except FloodWait:
-            return await edit.edit('Too many requests, try again later.')
-        except ValueError:
-            return await edit.edit('Send Only message link or Private channel invites  @groupdc .')
-        except Exception as e:
-            return await edit.edit(f'Error: `{str(e)}`')         
-          
+
+    range_links = parse_range(links[0])
+    if range_links:
+        status = await bot.send_message(event.chat.id, f'Batch job: {len(range_links)} messages queued.')
+        done, failed = 0, 0
+        for link in range_links:
+            edit = await bot.send_message(event.chat.id, f'Processing {done + failed + 1}/{len(range_links)}...')
+            try:
+                await get_msg(userbot, bot, event.chat.id, link, edit)
+                done += 1
+            except Exception:
+                failed += 1
+                await edit.edit(f'Skipped (error): {link}')
+                await asyncio.sleep(1)
+        await status.edit(f'Batch complete: {done} sent, {failed} failed.')
+        return
+
+    for link in links:
+        edit = await bot.send_message(event.chat.id, 'Trying to process.')
+        if 't.me/+' in link:
+            xy = await join(userbot, link)
+            await edit.edit(xy)
+            continue
+        if 't.me' in link:
+            try:
+                await get_msg(userbot, bot, event.chat.id, link, edit)
+            except FloodWait as e:
+                await edit.edit(f'Too many requests. Wait {e.value}s.')
+            except ValueError:
+                await edit.edit('Send Only message link or Private channel invites  @groupdc .')
+            except Exception as e:
+                await edit.edit(f'Error: `{str(e)}`')
