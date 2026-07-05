@@ -230,7 +230,8 @@ async def extract_thumb(bot, message):
         if thumb_path and os.path.isfile(thumb_path):
             os.remove(thumb_path)
 
-
+@Bot.on_message(filters.private & filters.incoming & ~filters.command("start") & ~filters.command("thumb"))
+async def clone(bot, event):
     if not event.text:
         return
 
