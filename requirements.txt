@@ -1,0 +1,6 @@
+#Groupdcbots
+ethon
+python-decouple
+pyrogram
+telethon
+tgcrypto
