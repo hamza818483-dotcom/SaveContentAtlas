@@ -9,6 +9,26 @@ def get_youtube_id(text):
     m = re.search(r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([A-Za-z0-9_-]{11})', text)
     return m.group(1) if m else None
 
+async def download_youtube_thumbnail(url, sender):
+    out_tmpl = f'ytthumb_{sender}_{int(time.time())}'
+    cmd = [
+        'yt-dlp', '--skip-download', '--write-thumbnail',
+        '--convert-thumbnails', 'jpg',
+        '-o', out_tmpl,
+        '--no-playlist',
+    ]
+    cookies_path = os.getenv('YT_COOKIES_PATH', 'cookies.txt')
+    if os.path.isfile(cookies_path):
+        cmd += ['--cookies', cookies_path]
+    cmd.append(url)
+    process = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    await process.communicate()
+    out_path = f'{out_tmpl}.jpg'
+    if os.path.isfile(out_path):
+        return out_path
+    return None
+
 async def download_youtube(url, sender):
     out_path = f'yt_{sender}_{int(time.time())}.mp4'
     cmd = [

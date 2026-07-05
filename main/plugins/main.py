@@ -1,6 +1,6 @@
 # Github.com/Vasusen-code
 
-from main.plugins.helpers import get_link, join, screenshot, get_youtube_id, download_youtube
+from main.plugins.helpers import get_link, join, screenshot, get_youtube_id, download_youtube, download_youtube_thumbnail
 from main.plugins.display_progress import progress_for_pyrogram
 
 from decouple import config
@@ -207,6 +207,26 @@ async def extract_thumb(bot, message):
     video_obj = reply.video if reply else None
     if not video_obj and reply and reply.document and (reply.document.mime_type or "").startswith("video/"):
         video_obj = reply.document
+
+    # Case 1: reply is a YouTube link -> fetch the real YT thumbnail directly
+    if not video_obj and reply and reply.text:
+        yt_id = get_youtube_id(reply.text)
+        if yt_id:
+            status = await message.reply("Fetching original YouTube thumbnail...")
+            thumb_path = None
+            try:
+                thumb_path = await download_youtube_thumbnail(reply.text.strip(), message.chat.id)
+                if not thumb_path:
+                    await status.edit("ERROR: Could not fetch YouTube thumbnail.")
+                    return
+                await bot.send_photo(message.chat.id, thumb_path, caption="Original YouTube Thumbnail")
+                await status.delete()
+            except Exception as e:
+                await status.edit(f"ERROR: {str(e)}")
+            finally:
+                if thumb_path and os.path.isfile(thumb_path):
+                    os.remove(thumb_path)
+            return
 
     target_msg = reply
     if not video_obj and reply and reply.text:
