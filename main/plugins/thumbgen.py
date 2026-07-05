@@ -81,9 +81,15 @@ async def generate_thumbnail(sample_paths, photo_paths, prompt_text, topic_name,
         try:
             async with httpx.AsyncClient(timeout=120) as client:
                 r = await client.post(url, json=payload)
-            if r.status_code == 429 or r.status_code == 403:
+            if r.status_code == 429:
+                body = r.text[:500]
+                if "PerDay" in body or "daily" in body.lower():
+                    _mark_dead(key)
+                last_err = f"429: {body}"
+                continue
+            if r.status_code == 403:
                 _mark_dead(key)
-                last_err = f"{r.status_code}: {r.text[:300]}"
+                last_err = f"403: {r.text[:300]}"
                 continue
             if r.status_code != 200:
                 last_err = f"{r.status_code}: {r.text[:300]}"
@@ -106,5 +112,5 @@ async def generate_thumbnail(sample_paths, photo_paths, prompt_text, topic_name,
             last_err = str(e)
             continue
     if tried == 0:
-        raise RuntimeError("All Gemini keys are on cooldown (quota exceeded). Try again later.")
+        raise RuntimeError("All Gemini keys are on daily quota cooldown. Try again later.")
     raise RuntimeError(f"Thumbnail generation failed: {last_err}")
