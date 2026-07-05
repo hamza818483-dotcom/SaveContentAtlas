@@ -14,19 +14,25 @@ async def download_youtube_thumbnail(url, sender):
     cmd = [
         'yt-dlp', '--skip-download', '--write-thumbnail',
         '--convert-thumbnails', 'jpg',
-        '-o', out_tmpl,
+        '-o', f'{out_tmpl}.%(ext)s',
         '--no-playlist',
+        '--remote-components', 'ejs:github',
     ]
     cookies_path = os.getenv('YT_COOKIES_PATH', 'cookies.txt')
+    cookies_content = os.getenv('YT_COOKIES_CONTENT')
+    if cookies_content and not os.path.isfile(cookies_path):
+        with open(cookies_path, 'w') as f:
+            f.write(cookies_content)
     if os.path.isfile(cookies_path):
         cmd += ['--cookies', cookies_path]
     cmd.append(url)
     process = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     await process.communicate()
-    out_path = f'{out_tmpl}.jpg'
-    if os.path.isfile(out_path):
-        return out_path
+    for ext in ('jpg', 'webp', 'png'):
+        p = f'{out_tmpl}.{ext}'
+        if os.path.isfile(p):
+            return p
     return None
 
 async def download_youtube(url, sender):
