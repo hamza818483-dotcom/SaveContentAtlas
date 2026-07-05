@@ -14,6 +14,7 @@ async def download_youtube(url, sender):
     cmd = [
         'yt-dlp', '-f', 'best[ext=mp4]/best', '-o', out_path,
         '--no-playlist',
+        '--remote-components', 'ejs:github',
     ]
     cookies_path = os.getenv('YT_COOKIES_PATH', 'cookies.txt')
     cookies_content = os.getenv('YT_COOKIES_CONTENT')
