@@ -9,16 +9,12 @@ from aiohttp import web
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
 
-path = "main/plugins/*.py"
-files = glob.glob(path)
-for name in files:
-    with open(name) as a:
-        patt = Path(a.name)
-        plugin_name = patt.stem
-        load_plugins(plugin_name.replace(".py", ""))
+import os
 
 print("Successfully deployed!")
 
+from main.plugins import main as main_plugin
+from main.plugins import start as start_plugin
 from main.plugins.main import Bot, userbot, start_clients
 
 
