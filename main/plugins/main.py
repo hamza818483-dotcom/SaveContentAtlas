@@ -199,7 +199,10 @@ def parse_range(link):
 @Bot.on_message(filters.private & filters.command("thumb") & filters.reply)
 async def extract_thumb(bot, message):
     reply = message.reply_to_message
-    if not reply or not reply.video:
+    video_obj = reply.video if reply else None
+    if not video_obj and reply and reply.document and (reply.document.mime_type or "").startswith("video/"):
+        video_obj = reply.document
+    if not reply or not video_obj:
         await message.reply("Reply to a video with /thumb.")
         return
     status = await message.reply("Extracting 1080p thumbnail...")
@@ -207,7 +210,7 @@ async def extract_thumb(bot, message):
     thumb_path = None
     try:
         video_path = await bot.download_media(reply)
-        duration = reply.video.duration or 1
+        duration = getattr(video_obj, "duration", None) or 1
         thumb_path = f"thumb_{message.chat.id}_{int(time.time())}.jpg"
         cmd = [
             "ffmpeg", "-y", "-ss", str(duration / 2), "-i", video_path,
