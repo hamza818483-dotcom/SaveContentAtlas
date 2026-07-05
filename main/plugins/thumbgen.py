@@ -73,42 +73,48 @@ async def generate_thumbnail(sample_paths, photo_paths, prompt_text, topic_name,
         if _is_dead(key):
             continue
         tried += 1
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.5-flash-image:generateContent?key={key}"
-        )
-        payload = {"contents": [{"parts": parts}]}
-        try:
-            async with httpx.AsyncClient(timeout=120) as client:
-                r = await client.post(url, json=payload)
-            if r.status_code == 429:
-                _mark_dead(key)
-                last_err = f"429: {r.text[:500]}"
+        model_names = ["gemini-3.1-flash-image", "gemini-2.5-flash-image"]
+        got_429 = False
+        for model_name in model_names:
+            url = (
+                "https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{model_name}:generateContent?key={key}"
+            )
+            payload = {"contents": [{"parts": parts}]}
+            try:
+                async with httpx.AsyncClient(timeout=120) as client:
+                    r = await client.post(url, json=payload)
+                if r.status_code == 404:
+                    continue
+                if r.status_code == 429:
+                    last_err = f"429: {r.text[:500]}"
+                    got_429 = True
+                    continue
+                if r.status_code == 403:
+                    last_err = f"403: {r.text[:300]}"
+                    continue
+                if r.status_code != 200:
+                    last_err = f"{r.status_code}: {r.text[:300]}"
+                    continue
+                data = r.json()
+                cands = data.get("candidates", [])
+                if not cands:
+                    last_err = "No candidates returned."
+                    continue
+                out_parts = cands[0].get("content", {}).get("parts", [])
+                for part in out_parts:
+                    inline = part.get("inline_data") or part.get("inlineData")
+                    if inline and inline.get("data"):
+                        img_bytes = base64.b64decode(inline["data"])
+                        with open(out_path, "wb") as f:
+                            f.write(img_bytes)
+                        return out_path
+                last_err = "No image data in response."
+            except Exception as e:
+                last_err = str(e)
                 continue
-            if r.status_code == 403:
-                _mark_dead(key)
-                last_err = f"403: {r.text[:300]}"
-                continue
-            if r.status_code != 200:
-                last_err = f"{r.status_code}: {r.text[:300]}"
-                continue
-            data = r.json()
-            cands = data.get("candidates", [])
-            if not cands:
-                last_err = "No candidates returned."
-                continue
-            out_parts = cands[0].get("content", {}).get("parts", [])
-            for part in out_parts:
-                inline = part.get("inline_data") or part.get("inlineData")
-                if inline and inline.get("data"):
-                    img_bytes = base64.b64decode(inline["data"])
-                    with open(out_path, "wb") as f:
-                        f.write(img_bytes)
-                    return out_path
-            last_err = "No image data in response."
-        except Exception as e:
-            last_err = str(e)
-            continue
+        if got_429:
+            _mark_dead(key)
     if tried == 0:
         return await _generate_with_pollinations(prompt_text, topic_name, out_path)
     raise_err = f"Thumbnail generation failed: {last_err}"
