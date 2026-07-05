@@ -207,14 +207,26 @@ async def extract_thumb(bot, message):
     video_obj = reply.video if reply else None
     if not video_obj and reply and reply.document and (reply.document.mime_type or "").startswith("video/"):
         video_obj = reply.document
-    if not reply or not video_obj:
+
+    target_msg = reply
+    if not video_obj and reply and reply.text:
+        mapped_id = yt_video_map.get((message.chat.id, reply.id))
+        if mapped_id:
+            try:
+                target_msg = await bot.get_messages(message.chat.id, mapped_id)
+                video_obj = target_msg.video or target_msg.document
+            except Exception:
+                target_msg = None
+                video_obj = None
+
+    if not target_msg or not video_obj:
         await message.reply("Reply to a video with /thumb.")
         return
     status = await message.reply("Extracting 1080p thumbnail...")
     video_path = None
     thumb_path = None
     try:
-        video_path = await bot.download_media(reply)
+        video_path = await bot.download_media(target_msg)
         duration = getattr(video_obj, "duration", None) or 1
         thumb_path = f"thumb_{message.chat.id}_{int(time.time())}.jpg"
         cmd = [
@@ -238,6 +250,8 @@ async def extract_thumb(bot, message):
         if thumb_path and os.path.isfile(thumb_path):
             os.remove(thumb_path)
 
+yt_video_map = {}  # {(chat_id, yt_link_msg_id): video_msg_id}
+
 @Bot.on_message(filters.private & filters.incoming & ~filters.command("start") & ~filters.command("thumb") & ~filters.command(["up", "done", "me", "prompt", "new"]))
 async def clone(bot, event):
     if not event.text:
@@ -256,7 +270,7 @@ async def clone(bot, event):
             data = video_metadata(file)
             duration = data["duration"]
             thumb_path = await screenshot(file, duration / 2, event.chat.id)
-            await bot.send_video(
+            sent = await bot.send_video(
                 chat_id=event.chat.id,
                 video=file,
                 caption=f"YouTube: {yt_id}",
@@ -266,6 +280,7 @@ async def clone(bot, event):
                 progress=progress_for_pyrogram,
                 progress_args=(bot, '**UPLOADING:**\n', edit, time.time())
             )
+            yt_video_map[(event.chat.id, event.id)] = sent.id
             await edit.delete()
         except Exception as e:
             await edit.edit(f'ERROR: {str(e)}')

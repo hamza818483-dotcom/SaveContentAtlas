@@ -17,6 +17,10 @@ async def download_youtube(url, sender):
         '--extractor-args', 'youtube:player_client=android',
     ]
     cookies_path = os.getenv('YT_COOKIES_PATH', 'cookies.txt')
+    cookies_content = os.getenv('YT_COOKIES_CONTENT')
+    if cookies_content and not os.path.isfile(cookies_path):
+        with open(cookies_path, 'w') as f:
+            f.write(cookies_content)
     if os.path.isfile(cookies_path):
         cmd += ['--cookies', cookies_path]
     cmd.append(url)
