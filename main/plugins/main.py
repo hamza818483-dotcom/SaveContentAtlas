@@ -27,8 +27,9 @@ Bot = Client(
 )
 
 userbot = Client(
-    session_name=SESSION, 
-    api_hash=API_HASH, 
+    "userbot",
+    session_string=SESSION,
+    api_hash=API_HASH,
     api_id=API_ID)
   
 def thumbnail(sender):
