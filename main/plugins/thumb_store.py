@@ -52,3 +52,33 @@ async def clear_file_ids(chat_id, kind=None):
         params["kind"] = f"eq.{kind}"
     async with httpx.AsyncClient(timeout=30) as client:
         await client.delete(_table_url(), headers=_HEADERS, params=params)
+
+# --- YT link -> uploaded video message id mapping (persistent, for /thumb on YT links) ---
+
+def _yt_table_url():
+    return f"{SUPABASE_URL}/rest/v1/yt_video_map"
+
+async def set_yt_map_entry(chat_id, link_msg_id, video_msg_id):
+    async with httpx.AsyncClient(timeout=30) as client:
+        await client.post(
+            _yt_table_url(),
+            headers={**_HEADERS, "Prefer": "resolution=merge-duplicates"},
+            json={"chat_id": chat_id, "link_msg_id": link_msg_id, "video_msg_id": video_msg_id},
+        )
+
+async def get_yt_map_entry(chat_id, link_msg_id):
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(
+            _yt_table_url(),
+            headers=_HEADERS,
+            params={
+                "chat_id": f"eq.{chat_id}",
+                "link_msg_id": f"eq.{link_msg_id}",
+                "select": "video_msg_id",
+                "limit": "1",
+            },
+        )
+        if r.status_code != 200:
+            return None
+        rows = r.json()
+        return rows[0]["video_msg_id"] if rows else None

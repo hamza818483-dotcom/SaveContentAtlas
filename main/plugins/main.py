@@ -211,6 +211,8 @@ async def extract_thumb(bot, message):
     target_msg = reply
     if not video_obj and reply and reply.text:
         mapped_id = yt_video_map.get((message.chat.id, reply.id))
+        if not mapped_id:
+            mapped_id = await get_yt_map_entry(message.chat.id, reply.id)
         if mapped_id:
             try:
                 target_msg = await bot.get_messages(message.chat.id, mapped_id)
@@ -270,7 +272,9 @@ def _save_yt_map():
     except Exception:
         pass
 
-yt_video_map = _load_yt_map()  # {(chat_id, yt_link_msg_id): video_msg_id} - persisted to disk, survives bot restarts
+from main.plugins.thumb_store import get_yt_map_entry, set_yt_map_entry
+
+yt_video_map = _load_yt_map()  # legacy local cache; Supabase is source of truth now
 
 @Bot.on_message(filters.private & filters.incoming & ~filters.command("start") & ~filters.command("thumb") & ~filters.command(["up", "done", "me", "prompt", "new"]))
 async def clone(bot, event):
@@ -303,6 +307,7 @@ async def clone(bot, event):
             )
             yt_video_map[(event.chat.id, event.id)] = sent.id
             _save_yt_map()
+            await set_yt_map_entry(event.chat.id, event.id, sent.id)
             await edit.delete()
         except Exception as e:
             await edit.edit(f'ERROR: {str(e)}')
