@@ -309,44 +309,56 @@ from main.plugins.thumb_store import get_yt_map_entry, set_yt_map_entry
 
 yt_video_map = _load_yt_map()  # legacy local cache; Supabase is source of truth now
 
-@Bot.on_message(filters.private & filters.incoming & ~filters.command("start") & ~filters.command("thumb") & ~filters.command(["up", "done", "me", "prompt", "new"]))
+async def _download_and_send_youtube(bot, chat_id, url, reply_to_id):
+    yt_id = get_youtube_id(url)
+    edit = await bot.send_message(chat_id, 'Downloading YouTube video...')
+    file = None
+    try:
+        file = await download_youtube(url.strip(), chat_id)
+        if not file or not os.path.isfile(file):
+            await edit.edit('ERROR: Could not download this YouTube video.')
+            return
+        await edit.edit('Uploading...')
+        data = video_metadata(file)
+        duration = data["duration"]
+        thumb_path = await screenshot(file, duration / 2, chat_id)
+        sent = await bot.send_video(
+            chat_id=chat_id,
+            video=file,
+            caption=f"YouTube: {yt_id}",
+            supports_streaming=True,
+            duration=duration,
+            thumb=thumb_path,
+            reply_to_message_id=reply_to_id,
+            progress=progress_for_pyrogram,
+            progress_args=(bot, '**UPLOADING:**\n', edit, time.time())
+        )
+        yt_video_map[(chat_id, reply_to_id)] = sent.id
+        _save_yt_map()
+        await set_yt_map_entry(chat_id, reply_to_id, sent.id)
+        await edit.delete()
+    except Exception as e:
+        await edit.edit(f'ERROR: {str(e)}')
+    finally:
+        if file and os.path.isfile(file):
+            os.remove(file)
+
+@Bot.on_message(filters.private & filters.command("yt"))
+async def cmd_yt(bot, message):
+    text = message.text.split(None, 1)
+    if len(text) < 2 or not get_youtube_id(text[1]):
+        await message.reply("Usage: /yt <youtube_link>")
+        return
+    await _download_and_send_youtube(bot, message.chat.id, text[1].strip(), message.id)
+
+@Bot.on_message(filters.private & filters.incoming & ~filters.command("start") & ~filters.command("thumb") & ~filters.command(["up", "done", "me", "prompt", "new", "compress", "yt"]))
 async def clone(bot, event):
     if not event.text:
         return
 
     yt_id = get_youtube_id(event.text)
     if yt_id:
-        edit = await bot.send_message(event.chat.id, 'Downloading YouTube video...')
-        file = None
-        try:
-            file = await download_youtube(event.text.strip(), event.chat.id)
-            if not file or not os.path.isfile(file):
-                await edit.edit('ERROR: Could not download this YouTube video.')
-                return
-            await edit.edit('Uploading...')
-            data = video_metadata(file)
-            duration = data["duration"]
-            thumb_path = await screenshot(file, duration / 2, event.chat.id)
-            sent = await bot.send_video(
-                chat_id=event.chat.id,
-                video=file,
-                caption=f"YouTube: {yt_id}",
-                supports_streaming=True,
-                duration=duration,
-                thumb=thumb_path,
-                reply_to_message_id=event.id,
-                progress=progress_for_pyrogram,
-                progress_args=(bot, '**UPLOADING:**\n', edit, time.time())
-            )
-            yt_video_map[(event.chat.id, event.id)] = sent.id
-            _save_yt_map()
-            await set_yt_map_entry(event.chat.id, event.id, sent.id)
-            await edit.delete()
-        except Exception as e:
-            await edit.edit(f'ERROR: {str(e)}')
-        finally:
-            if file and os.path.isfile(file):
-                os.remove(file)
+        # YT links no longer auto-download; use /yt <link>
         return
 
     links = get_all_links(event.text)
