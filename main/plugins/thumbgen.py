@@ -112,5 +112,24 @@ async def generate_thumbnail(sample_paths, photo_paths, prompt_text, topic_name,
             last_err = str(e)
             continue
     if tried == 0:
-        raise RuntimeError("All Gemini keys are on daily quota cooldown. Try again later.")
-    raise RuntimeError(f"Thumbnail generation failed: {last_err}")
+        return await _generate_with_pollinations(prompt_text, topic_name, out_path)
+    raise_err = f"Thumbnail generation failed: {last_err}"
+    try:
+        return await _generate_with_pollinations(prompt_text, topic_name, out_path)
+    except Exception:
+        raise RuntimeError(raise_err)
+
+async def _generate_with_pollinations(prompt_text, topic_name, out_path):
+    prompt = (
+        f"Professional YouTube course thumbnail, topic: {topic_name}, "
+        f"bold text, high contrast, modern education style. {prompt_text or ''}"
+    ).strip()
+    url = f"https://image.pollinations.ai/prompt/{httpx.QueryParams({'p': prompt})['p']}"
+    params = {"width": 1920, "height": 1080, "nologo": "true"}
+    async with httpx.AsyncClient(timeout=120) as client:
+        r = await client.get(url, params=params)
+        if r.status_code != 200 or not r.content:
+            raise RuntimeError("Pollinations fallback also failed.")
+        with open(out_path, "wb") as f:
+            f.write(r.content)
+    return out_path
