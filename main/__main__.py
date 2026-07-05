@@ -5,7 +5,6 @@ from pathlib import Path
 from main.utils import load_plugins
 import logging
 from aiohttp import web
-from . import bot
 
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
@@ -19,6 +18,8 @@ for name in files:
         load_plugins(plugin_name.replace(".py", ""))
 
 print("Successfully deployed!")
+
+from main.plugins.main import Bot, userbot, start_clients
 
 
 async def _health(request):
@@ -35,14 +36,12 @@ async def _run_web_server():
     await site.start()
 
 
-async def _start_pyrogram_clients():
-    from main.plugins.main import start_clients
+async def main():
+    await _run_web_server()
     await start_clients()
+    from pyrogram import idle
+    await idle()
 
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(_run_web_server())
-    loop.run_until_complete(_start_pyrogram_clients())
-    bot.run_until_disconnected()
-
+    asyncio.get_event_loop().run_until_complete(main())
