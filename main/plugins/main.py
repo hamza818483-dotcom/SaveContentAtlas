@@ -32,15 +32,28 @@ userbot = Client(
     api_hash=API_HASH,
     api_id=API_ID)
 
+from pyrogram.errors import FloodWait as _FloodWait
+
 async def start_clients():
     if not Bot.is_connected:
-        await Bot.start()
+        while True:
+            try:
+                await Bot.start()
+                break
+            except _FloodWait as e:
+                print(f"[FloodWait] Bot: waiting {e.value}s")
+                await asyncio.sleep(e.value + 5)
     if not userbot.is_connected:
-        try:
-            await userbot.start()
-        except Exception as e:
-            print(f"[FATAL] userbot failed to start. SESSION string is invalid/incompatible with Pyrogram: {e}")
-            raise
+        while True:
+            try:
+                await userbot.start()
+                break
+            except _FloodWait as e:
+                print(f"[FloodWait] userbot: waiting {e.value}s")
+                await asyncio.sleep(e.value + 5)
+            except Exception as e:
+                print(f"[FATAL] userbot failed to start: {e}")
+                raise
 
 def thumbnail(sender):
     if os.path.exists(f'{sender}.jpg'):
