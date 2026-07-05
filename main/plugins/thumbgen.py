@@ -82,10 +82,8 @@ async def generate_thumbnail(sample_paths, photo_paths, prompt_text, topic_name,
             async with httpx.AsyncClient(timeout=120) as client:
                 r = await client.post(url, json=payload)
             if r.status_code == 429:
-                body = r.text[:500]
-                if "PerDay" in body or "daily" in body.lower():
-                    _mark_dead(key)
-                last_err = f"429: {body}"
+                _mark_dead(key)
+                last_err = f"429: {r.text[:500]}"
                 continue
             if r.status_code == 403:
                 _mark_dead(key)
