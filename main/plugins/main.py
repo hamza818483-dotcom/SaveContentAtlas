@@ -14,7 +14,7 @@ from pyrogram.errors import FloodWait, BadRequest
 from pyrogram import Client, filters
 from ethon.pyfunc import video_metadata
 
-import re, time, asyncio, logging, os
+import re, time, asyncio, logging, os, json
 
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
@@ -219,16 +219,7 @@ async def extract_thumb(bot, message):
                 target_msg = None
                 video_obj = None
         if not video_obj:
-            try:
-                async for m in bot.get_chat_history(message.chat.id, offset_id=reply.id, offset=-1, reverse=True, limit=50):
-                    if m.reply_to_message_id == reply.id and (m.video or m.document):
-                        target_msg = m
-                        video_obj = m.video or m.document
-                        break
-            except Exception:
-                pass
-            if not video_obj:
-                target_msg = None
+            target_msg = None
 
     if not target_msg or not video_obj:
         await message.reply("Reply to a video with /thumb.")
@@ -261,7 +252,25 @@ async def extract_thumb(bot, message):
         if thumb_path and os.path.isfile(thumb_path):
             os.remove(thumb_path)
 
-yt_video_map = {}  # {(chat_id, yt_link_msg_id): video_msg_id} - fast cache, restart-safe fallback below
+YT_MAP_FILE = "yt_video_map.json"
+
+def _load_yt_map():
+    try:
+        with open(YT_MAP_FILE, "r") as f:
+            raw = json.load(f)
+        return {tuple(map(int, k.split(":"))): v for k, v in raw.items()}
+    except Exception:
+        return {}
+
+def _save_yt_map():
+    try:
+        raw = {f"{k[0]}:{k[1]}": v for k, v in yt_video_map.items()}
+        with open(YT_MAP_FILE, "w") as f:
+            json.dump(raw, f)
+    except Exception:
+        pass
+
+yt_video_map = _load_yt_map()  # {(chat_id, yt_link_msg_id): video_msg_id} - persisted to disk, survives bot restarts
 
 @Bot.on_message(filters.private & filters.incoming & ~filters.command("start") & ~filters.command("thumb") & ~filters.command(["up", "done", "me", "prompt", "new"]))
 async def clone(bot, event):
@@ -293,6 +302,7 @@ async def clone(bot, event):
                 progress_args=(bot, '**UPLOADING:**\n', edit, time.time())
             )
             yt_video_map[(event.chat.id, event.id)] = sent.id
+            _save_yt_map()
             await edit.delete()
         except Exception as e:
             await edit.edit(f'ERROR: {str(e)}')
