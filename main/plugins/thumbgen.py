@@ -120,8 +120,8 @@ async def generate_thumbnail(sample_paths, photo_paths, prompt_text, topic_name,
     raise_err = f"Thumbnail generation failed: {last_err}"
     try:
         return await _generate_with_pollinations(prompt_text, topic_name, out_path)
-    except Exception:
-        raise RuntimeError(raise_err)
+    except Exception as e:
+        raise RuntimeError(f"{raise_err} | Fallback also failed: {str(e)}")
 
 async def _generate_with_pollinations(prompt_text, topic_name, out_path):
     prompt = (
