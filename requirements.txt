@@ -4,5 +4,5 @@ python-decouple
 pyrogram
 tgcrypto
 aiohttp
-yt-dlp>=2025.6.30
+yt-dlp[default]>=2025.6.30
 httpx
