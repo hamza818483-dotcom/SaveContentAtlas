@@ -210,9 +210,9 @@ async def extract_thumb(bot, message):
 
     target_msg = reply
     if not video_obj and reply and reply.text:
-        mapped_id = yt_video_map.get((message.chat.id, reply.id))
+        mapped_id = await get_yt_map_entry(message.chat.id, reply.id)
         if not mapped_id:
-            mapped_id = await get_yt_map_entry(message.chat.id, reply.id)
+            mapped_id = yt_video_map.get((message.chat.id, reply.id))
         if mapped_id:
             try:
                 target_msg = await bot.get_messages(message.chat.id, mapped_id)

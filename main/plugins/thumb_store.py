@@ -60,11 +60,12 @@ def _yt_table_url():
 
 async def set_yt_map_entry(chat_id, link_msg_id, video_msg_id):
     async with httpx.AsyncClient(timeout=30) as client:
-        await client.post(
+        r = await client.post(
             _yt_table_url(),
             headers={**_HEADERS, "Prefer": "resolution=merge-duplicates"},
             json={"chat_id": chat_id, "link_msg_id": link_msg_id, "video_msg_id": video_msg_id},
         )
+        return r.status_code in (200, 201, 204)
 
 async def get_yt_map_entry(chat_id, link_msg_id):
     async with httpx.AsyncClient(timeout=30) as client:
