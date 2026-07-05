@@ -65,7 +65,9 @@ async def get_msg(userbot, client, sender, msg_link, edit):
     chat = ""
     msg_id = int(msg_link.split("/")[-1])
     if 't.me/c/' in msg_link:
-        chat = int('-100' + str(msg_link.split("/")[-2]))
+        parts = msg_link.rstrip('/').split("/")
+        channel_id = parts[parts.index('c') + 1]
+        chat = int('-100' + str(channel_id))
         try:
             msg = await userbot.get_messages(chat, msg_id)
             file = await userbot.download_media(
