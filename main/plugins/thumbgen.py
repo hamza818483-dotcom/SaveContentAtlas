@@ -1,9 +1,13 @@
 #Github.com/Vasusen-code
-import os, base64, mimetypes, itertools, httpx
+import os, base64, mimetypes, itertools, time, httpx
 from decouple import config
 
 GEMINI_KEYS = [k.strip() for k in config("GEMINI_KEYS", default="").split(",") if k.strip()]
 _key_cycle = itertools.cycle(GEMINI_KEYS) if GEMINI_KEYS else None
+
+# key -> unix timestamp until which it's considered dead (quota exceeded)
+_dead_until = {}
+_COOLDOWN = 3600  # 1 hour before retrying a quota-exceeded key
 
 IDENTITY_TEXT = (
     "Amir Hamza Rafi\n"
@@ -15,6 +19,13 @@ def _next_key():
     if not _key_cycle:
         raise RuntimeError("No GEMINI_KEYS configured.")
     return next(_key_cycle)
+
+def _mark_dead(key):
+    _dead_until[key] = time.time() + _COOLDOWN
+
+def _is_dead(key):
+    until = _dead_until.get(key)
+    return until is not None and time.time() < until
 
 def _file_to_part(path):
     mime, _ = mimetypes.guess_type(path)
@@ -56,8 +67,12 @@ async def generate_thumbnail(sample_paths, photo_paths, prompt_text, topic_name,
 
     last_err = None
     attempts = len(GEMINI_KEYS) or 1
+    tried = 0
     for _ in range(attempts):
         key = _next_key()
+        if _is_dead(key):
+            continue
+        tried += 1
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
             f"gemini-2.5-flash-image:generateContent?key={key}"
@@ -66,6 +81,10 @@ async def generate_thumbnail(sample_paths, photo_paths, prompt_text, topic_name,
         try:
             async with httpx.AsyncClient(timeout=120) as client:
                 r = await client.post(url, json=payload)
+            if r.status_code == 429 or r.status_code == 403:
+                _mark_dead(key)
+                last_err = f"{r.status_code}: {r.text[:300]}"
+                continue
             if r.status_code != 200:
                 last_err = f"{r.status_code}: {r.text[:300]}"
                 continue
@@ -86,4 +105,6 @@ async def generate_thumbnail(sample_paths, photo_paths, prompt_text, topic_name,
         except Exception as e:
             last_err = str(e)
             continue
+    if tried == 0:
+        raise RuntimeError("All Gemini keys are on cooldown (quota exceeded). Try again later.")
     raise RuntimeError(f"Thumbnail generation failed: {last_err}")
