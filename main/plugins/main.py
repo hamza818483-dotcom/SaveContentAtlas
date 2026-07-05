@@ -31,7 +31,13 @@ userbot = Client(
     session_string=SESSION,
     api_hash=API_HASH,
     api_id=API_ID)
-  
+
+async def start_clients():
+    if not Bot.is_connected:
+        await Bot.start()
+    if not userbot.is_connected:
+        await userbot.start()
+
 def thumbnail(sender):
     if os.path.exists(f'{sender}.jpg'):
         return f'{sender}.jpg'

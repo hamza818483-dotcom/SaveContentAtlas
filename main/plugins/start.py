@@ -4,7 +4,6 @@ import os
 from .. import bot
 from telethon import events, Button, TelegramClient
 
-from pyrogram import idle
 from main.plugins.main import Bot, userbot
 
 st = "Oii Buddy 🤡 __Send me Link of any message to clone it here, For private channel message, Send invite link first.__\n\nSUPPORT: @groupdcbots\nDEV: @selfiebd"
@@ -16,15 +15,6 @@ async def start(event):
                               [Button.inline("SET THUMB.", data="sett"),
                                Button.inline("REM THUMB.", data="remt")]
                               ])
-    try:
-        await Bot.start()
-        await userbot.start()
-        await idle()
-    except Exception as e:
-        if 'Client is already connected' in str(e):
-            pass
-        else:
-            return
     
 @bot.on(events.callbackquery.CallbackQuery(data="sett"))
 async def sett(event):    

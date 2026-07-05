@@ -35,8 +35,14 @@ async def _run_web_server():
     await site.start()
 
 
+async def _start_pyrogram_clients():
+    from main.plugins.main import start_clients
+    await start_clients()
+
+
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(_run_web_server())
+    loop.run_until_complete(_start_pyrogram_clients())
     bot.run_until_disconnected()
 
