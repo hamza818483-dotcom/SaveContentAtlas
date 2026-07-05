@@ -36,7 +36,11 @@ async def start_clients():
     if not Bot.is_connected:
         await Bot.start()
     if not userbot.is_connected:
-        await userbot.start()
+        try:
+            await userbot.start()
+        except Exception as e:
+            print(f"[FATAL] userbot failed to start. SESSION string is invalid/incompatible with Pyrogram: {e}")
+            raise
 
 def thumbnail(sender):
     if os.path.exists(f'{sender}.jpg'):
