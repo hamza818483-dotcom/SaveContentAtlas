@@ -61,75 +61,105 @@ def thumbnail(sender):
     else:
          return None
       
+async def resolve_chat(userbot, chat_id):
+    """Resolve peer using multiple fallback strategies."""
+    try:
+        return await userbot.get_chat(chat_id)
+    except Exception:
+        pass
+    try:
+        async for dialog in userbot.get_dialogs():
+            if dialog.chat.id == chat_id:
+                return dialog.chat
+    except Exception:
+        pass
+    try:
+        return await userbot.get_chat(chat_id)
+    except Exception as e:
+        raise ValueError(
+            f"Could not resolve chat {chat_id}. Ensure the userbot account "
+            f"is a member of this chat. ({e})"
+        )
+
 async def get_msg(userbot, client, sender, msg_link, edit):
-    chat = ""
-    msg_id = int(msg_link.split("/")[-1])
+    msg_id = int(msg_link.rstrip('/').split("/")[-1])
     if 't.me/c/' in msg_link:
         parts = msg_link.rstrip('/').split("/")
         channel_id = parts[parts.index('c') + 1]
         chat = int('-100' + str(channel_id))
         try:
-            try:
-                async for _ in userbot.get_dialogs():
-                    pass
-            except Exception:
-                pass
-            msg = await userbot.get_messages(chat, msg_id)
-            file = await userbot.download_media(
-                msg,
-                progress=progress_for_pyrogram,
-                progress_args=(
-                    userbot,
-                    "**DOWNOOADING:**\n",
-                    edit,
-                    time.time()
-                )
-            )
-            await edit.edit('Trying to Upload.')
-            caption = ""
-            if msg.text is not None:
-                caption = msg.text
-            if str(file).split(".")[-1] == 'mp4':
-                data = video_metadata(file)
-                duration = data["duration"]
-                thumb_path = await screenshot(file, duration/2, sender)
-                await client.send_video(
-                    chat_id=sender,
-                    video=file,
-                    caption=caption,
-                    supports_streaming=True,
-                    duration=duration,
-                    thumb=thumb_path,
+            await resolve_chat(userbot, chat)
+            while True:
+                try:
+                    msg = await userbot.get_messages(chat, msg_id)
+                    break
+                except FloodWait as e:
+                    await edit.edit(f'Rate limited, waiting {e.value}s...')
+                    await asyncio.sleep(e.value + 2)
+            if msg is None or msg.empty:
+                await edit.edit('ERROR: Message not found or was deleted.')
+                return
+            await edit.edit('Downloading...')
+            file = None
+            if msg.media:
+                file = await userbot.download_media(
+                    msg,
                     progress=progress_for_pyrogram,
-                    progress_args=(
-                        client,
-                        '**UPLOADING:**\n',
-                        edit,
-                        time.time()
-                    )
+                    progress_args=(userbot, "**DOWNLOADING:**\n", edit, time.time())
                 )
+            caption = msg.text or msg.caption or ""
+            if file:
+                await edit.edit('Uploading...')
+                ext = str(file).split(".")[-1].lower()
+                if ext in ("mp4", "mkv", "mov", "webm"):
+                    data = video_metadata(file)
+                    duration = data["duration"]
+                    thumb_path = await screenshot(file, duration / 2, sender)
+                    await client.send_video(
+                        chat_id=sender, video=file, caption=caption,
+                        supports_streaming=True, duration=duration, thumb=thumb_path,
+                        progress=progress_for_pyrogram,
+                        progress_args=(client, '**UPLOADING:**\n', edit, time.time())
+                    )
+                elif ext in ("jpg", "jpeg", "png", "webp"):
+                    await client.send_photo(
+                        chat_id=sender, photo=file, caption=caption,
+                        progress=progress_for_pyrogram,
+                        progress_args=(client, '**UPLOADING:**\n', edit, time.time())
+                    )
+                elif ext in ("mp3", "m4a", "ogg", "flac", "wav"):
+                    await client.send_audio(
+                        chat_id=sender, audio=file, caption=caption,
+                        progress=progress_for_pyrogram,
+                        progress_args=(client, '**UPLOADING:**\n', edit, time.time())
+                    )
+                else:
+                    thumb_path = thumbnail(sender)
+                    await client.send_document(
+                        sender, file, caption=caption, thumb=thumb_path,
+                        progress=progress_for_pyrogram,
+                        progress_args=(client, '**UPLOADING:**\n', edit, time.time())
+                    )
+            elif caption:
+                await client.send_message(sender, caption)
             else:
-                thumb_path=thumbnail(sender)
-                await client.send_document(
-                    sender,
-                    file, 
-                    caption=caption,
-                    thumb=thumb_path,
-                    progress=progress_for_pyrogram,
-                    progress_args=(
-                        client,
-                        '**UPLOADING:**\n',
-                        edit,
-                        time.time()
-                    )
-                )
+                await edit.edit('ERROR: Message has no text or media to clone.')
+                return
             await edit.delete()
+        except FloodWait as e:
+            await edit.edit(f'Too many requests. Wait {e.value}s and try again.')
         except Exception as e:
             await edit.edit(f'ERROR: {str(e)}')
-            return 
+            return
     else:
-        chat =  msg_link.split("/")[-2]
-        await client.copy_message(int(sender), chat, msg_id)
+        chat = msg_link.rstrip('/').split("/")[-2]
+        while True:
+            try:
+                await client.copy_message(int(sender), chat, msg_id)
+                break
+            except FloodWait as e:
+                await edit.edit(f'Rate limited, waiting {e.value}s...')
+                await asyncio.sleep(e.value + 2)
         await edit.delete()
         
 @Bot.on_message(filters.private & filters.incoming & ~filters.command("start"))
