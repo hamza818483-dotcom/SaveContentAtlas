@@ -69,6 +69,10 @@ async def get_msg(userbot, client, sender, msg_link, edit):
         channel_id = parts[parts.index('c') + 1]
         chat = int('-100' + str(channel_id))
         try:
+            try:
+                await userbot.get_chat(chat)
+            except Exception:
+                pass
             msg = await userbot.get_messages(chat, msg_id)
             file = await userbot.download_media(
                 msg,
