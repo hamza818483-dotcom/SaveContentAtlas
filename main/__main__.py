@@ -16,6 +16,7 @@ print("Successfully deployed!")
 from main.plugins import main as main_plugin
 from main.plugins import start as start_plugin
 from main.plugins import thumb_workflow as thumb_workflow_plugin
+from main.plugins import compressor as compressor_plugin
 from main.plugins.main import Bot, userbot, start_clients
 
 
