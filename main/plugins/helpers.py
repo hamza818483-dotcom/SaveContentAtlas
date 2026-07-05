@@ -35,12 +35,14 @@ async def download_youtube_thumbnail(url, sender):
             return p
     return None
 
-async def download_youtube(url, sender):
+async def download_youtube(url, sender, status_message=None):
     out_path = f'yt_{sender}_{int(time.time())}.mp4'
     cmd = [
         'yt-dlp', '-f', 'best[ext=mp4]/best', '-o', out_path,
         '--no-playlist',
         '--remote-components', 'ejs:github',
+        '--newline',
+        '--progress-template', 'download:%(progress._percent_str)s|%(progress._eta_str)s|%(progress._speed_str)s',
     ]
     cookies_path = os.getenv('YT_COOKIES_PATH', 'cookies.txt')
     cookies_content = os.getenv('YT_COOKIES_CONTENT')
@@ -52,9 +54,39 @@ async def download_youtube(url, sender):
     cmd.append(url)
     process = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await process.communicate()
+
+    last_update = 0
+    stderr_lines = []
+
+    async def _read_progress():
+        nonlocal last_update
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+            text = line.decode(errors="ignore").strip()
+            if status_message and "|" in text and time.time() - last_update >= 3:
+                try:
+                    pct, eta, speed = text.split("|")
+                    await status_message.edit(
+                        f"**Downloading YouTube video...**\n\n{pct.strip()} | ETA: {eta.strip()} | {speed.strip()}"
+                    )
+                    last_update = time.time()
+                except Exception:
+                    pass
+
+    async def _read_stderr():
+        while True:
+            line = await process.stderr.readline()
+            if not line:
+                break
+            stderr_lines.append(line.decode(errors="ignore"))
+
+    await asyncio.gather(_read_progress(), _read_stderr())
+    await process.wait()
+
     if process.returncode != 0:
-        raise Exception(f"yt-dlp failed: {stderr.decode().strip()[-300:]}")
+        raise Exception(f"yt-dlp failed: {''.join(stderr_lines).strip()[-300:]}")
     if os.path.isfile(out_path):
         return out_path
     matches = [f for f in os.listdir('.') if f.startswith(f'yt_{sender}_')]

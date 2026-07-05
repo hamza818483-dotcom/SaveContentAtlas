@@ -314,7 +314,7 @@ async def _download_and_send_youtube(bot, chat_id, url, reply_to_id):
     edit = await bot.send_message(chat_id, 'Downloading YouTube video...')
     file = None
     try:
-        file = await download_youtube(url.strip(), chat_id)
+        file = await download_youtube(url.strip(), chat_id, status_message=edit)
         if not file or not os.path.isfile(file):
             await edit.edit('ERROR: Could not download this YouTube video.')
             return
