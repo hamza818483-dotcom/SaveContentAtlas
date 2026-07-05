@@ -1,6 +1,6 @@
 # Github.com/Vasusen-code
 
-from main.plugins.helpers import get_link, join, screenshot
+from main.plugins.helpers import get_link, join, screenshot, get_youtube_id, download_youtube
 from main.plugins.display_progress import progress_for_pyrogram
 
 from decouple import config
@@ -200,6 +200,38 @@ def parse_range(link):
 async def clone(bot, event):
     if not event.text:
         return
+
+    yt_id = get_youtube_id(event.text)
+    if yt_id:
+        edit = await bot.send_message(event.chat.id, 'Downloading YouTube video...')
+        file = None
+        try:
+            file = await download_youtube(event.text.strip(), event.chat.id)
+            if not file or not os.path.isfile(file):
+                await edit.edit('ERROR: Could not download this YouTube video.')
+                return
+            await edit.edit('Uploading...')
+            data = video_metadata(file)
+            duration = data["duration"]
+            thumb_path = await screenshot(file, duration / 2, event.chat.id)
+            await bot.send_video(
+                chat_id=event.chat.id,
+                video=file,
+                caption=f"YouTube: {yt_id}",
+                supports_streaming=True,
+                duration=duration,
+                thumb=thumb_path,
+                progress=progress_for_pyrogram,
+                progress_args=(bot, '**UPLOADING:**\n', edit, time.time())
+            )
+            await edit.delete()
+        except Exception as e:
+            await edit.edit(f'ERROR: {str(e)}')
+        finally:
+            if file and os.path.isfile(file):
+                os.remove(file)
+        return
+
     links = get_all_links(event.text)
     if not links:
         return

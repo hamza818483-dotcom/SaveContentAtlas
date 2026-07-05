@@ -4,3 +4,4 @@ python-decouple
 pyrogram
 tgcrypto
 aiohttp
+yt-dlp

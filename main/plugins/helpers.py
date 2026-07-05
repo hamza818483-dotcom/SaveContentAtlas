@@ -5,6 +5,26 @@ from pyrogram.errors import FloodWait, BadRequest
 
 import asyncio, subprocess, re, os, time
 
+def get_youtube_id(text):
+    m = re.search(r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([A-Za-z0-9_-]{11})', text)
+    return m.group(1) if m else None
+
+async def download_youtube(url, sender):
+    out_path = f'yt_{sender}_{int(time.time())}.mp4'
+    cmd = [
+        'yt-dlp', '-f', 'best[ext=mp4]/best', '-o', out_path,
+        '--no-playlist', url
+    ]
+    process = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"yt-dlp failed: {stderr.decode().strip()[-300:]}")
+    if os.path.isfile(out_path):
+        return out_path
+    matches = [f for f in os.listdir('.') if f.startswith(f'yt_{sender}_')]
+    return matches[0] if matches else None
+
 #Join private chat-------------------------------------------------------------------------------------------------------------
 
 async def join(client, invite_link):
