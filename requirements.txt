@@ -4,3 +4,4 @@ python-decouple
 pyrogram
 telethon
 tgcrypto
+aiohttp
