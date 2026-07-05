@@ -35,18 +35,22 @@ userbot = Client(
 from pyrogram.errors import FloodWait as _FloodWait
 
 async def start_clients():
+    print("[BOOT] Starting Bot client...")
     if not Bot.is_connected:
         while True:
             try:
                 await Bot.start()
+                print("[BOOT] Bot client started successfully.")
                 break
             except _FloodWait as e:
                 print(f"[FloodWait] Bot: waiting {e.value}s")
                 await asyncio.sleep(e.value + 5)
+    print("[BOOT] Starting userbot client...")
     if not userbot.is_connected:
         while True:
             try:
                 await userbot.start()
+                print("[BOOT] userbot client started successfully.")
                 break
             except _FloodWait as e:
                 print(f"[FloodWait] userbot: waiting {e.value}s")
@@ -54,6 +58,7 @@ async def start_clients():
             except Exception as e:
                 print(f"[FATAL] userbot failed to start: {e}")
                 raise
+    print("[BOOT] All clients ready.")
 
 def thumbnail(sender):
     if os.path.exists(f'{sender}.jpg'):
