@@ -218,6 +218,17 @@ async def extract_thumb(bot, message):
             except Exception:
                 target_msg = None
                 video_obj = None
+        if not video_obj:
+            try:
+                async for m in bot.get_chat_history(message.chat.id, offset_id=reply.id, offset=-1, reverse=True, limit=50):
+                    if m.reply_to_message_id == reply.id and (m.video or m.document):
+                        target_msg = m
+                        video_obj = m.video or m.document
+                        break
+            except Exception:
+                pass
+            if not video_obj:
+                target_msg = None
 
     if not target_msg or not video_obj:
         await message.reply("Reply to a video with /thumb.")
@@ -250,7 +261,7 @@ async def extract_thumb(bot, message):
         if thumb_path and os.path.isfile(thumb_path):
             os.remove(thumb_path)
 
-yt_video_map = {}  # {(chat_id, yt_link_msg_id): video_msg_id}
+yt_video_map = {}  # {(chat_id, yt_link_msg_id): video_msg_id} - fast cache, restart-safe fallback below
 
 @Bot.on_message(filters.private & filters.incoming & ~filters.command("start") & ~filters.command("thumb") & ~filters.command(["up", "done", "me", "prompt", "new"]))
 async def clone(bot, event):
@@ -277,6 +288,7 @@ async def clone(bot, event):
                 supports_streaming=True,
                 duration=duration,
                 thumb=thumb_path,
+                reply_to_message_id=event.id,
                 progress=progress_for_pyrogram,
                 progress_args=(bot, '**UPLOADING:**\n', edit, time.time())
             )
