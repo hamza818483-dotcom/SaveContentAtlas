@@ -13,7 +13,9 @@ async def download_youtube(url, sender):
     out_path = f'yt_{sender}_{int(time.time())}.mp4'
     cmd = [
         'yt-dlp', '-f', 'best[ext=mp4]/best', '-o', out_path,
-        '--no-playlist', url
+        '--no-playlist',
+        '--extractor-args', 'youtube:player_client=android',
+        url
     ]
     process = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
