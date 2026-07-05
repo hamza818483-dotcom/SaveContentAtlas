@@ -214,18 +214,31 @@ async def extract_thumb(bot, message):
         if yt_id:
             status = await message.reply("Fetching original YouTube thumbnail...")
             thumb_path = None
+            hd_path = None
             try:
                 thumb_path = await download_youtube_thumbnail(reply.text.strip(), message.chat.id)
                 if not thumb_path:
                     await status.edit("ERROR: Could not fetch YouTube thumbnail.")
                     return
-                await bot.send_photo(message.chat.id, thumb_path, caption="Original YouTube Thumbnail")
+                hd_path = f"{thumb_path}_1080.jpg"
+                cmd = [
+                    "ffmpeg", "-y", "-i", thumb_path,
+                    "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
+                    hd_path
+                ]
+                process = await asyncio.create_subprocess_exec(
+                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                await process.communicate()
+                send_path = hd_path if os.path.isfile(hd_path) else thumb_path
+                await bot.send_photo(message.chat.id, send_path, caption="1080p Thumbnail")
                 await status.delete()
             except Exception as e:
                 await status.edit(f"ERROR: {str(e)}")
             finally:
                 if thumb_path and os.path.isfile(thumb_path):
                     os.remove(thumb_path)
+                if hd_path and os.path.isfile(hd_path):
+                    os.remove(hd_path)
             return
 
     target_msg = reply
